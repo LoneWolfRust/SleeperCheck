@@ -1,0 +1,7 @@
+{
+  "SleeperProximityMeters": 6.0,
+  "BuildingSearchRadiusMeters": 5.0,
+  "MaxResultsToPrint": 100,
+  "RequireSameBuildingId": true,
+  "IncludeGridIfGridApiPresent": true
+}
