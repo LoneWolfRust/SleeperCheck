@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("SleeperCheck", "ScarDev", "1.0.0")]
+    [Info("SleeperCheck", "scar.dev", "1.0.1")]
     [Description("Finds pairs of sleepers who are sleeping close together inside the same building and outside safe zones.")]
     public class SleeperCheck : RustPlugin
     {
