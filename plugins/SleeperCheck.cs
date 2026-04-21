@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Facepunch;
 using UnityEngine;
 
 namespace Oxide.Plugins
@@ -258,7 +257,7 @@ namespace Oxide.Plugins
 
         private uint GetNearbyBuildingId(Vector3 position)
         {
-            var entities = Pool.GetList<BaseEntity>();
+            var entities = new List<BaseEntity>();
             try
             {
                 Vis.Entities(position, _config.BuildingSearchRadiusMeters, entities, Rust.Layers.Mask.Construction);
@@ -290,7 +289,7 @@ namespace Oxide.Plugins
             }
             finally
             {
-                Pool.FreeList(ref entities);
+                entities.Clear();
             }
         }
 
