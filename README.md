@@ -1,42 +1,59 @@
 # SleeperCheck (Oxide/uMod Rust Plugin)
 
-SleeperCheck is an administrative Rust server plugin that scans sleeping players and reports pairs that appear to be sleeping unusually close together **inside the same building** and **outside safe zones**.
+SleeperCheck is an administrative Rust plugin that finds pairs of sleeping players who are:
 
-It is useful for moderation workflows, base auditing, and identifying potential alt-account clusters or coordinated sleeper placement.
+- close to each other (within a configurable distance),
+- associated with nearby building blocks (and optionally the same building ID),
+- and outside safe zones.
+
+It is intended for moderation and auditing workflows where staff need quick visibility into suspicious sleeper clustering.
+
+---
+
+## Current Plugin Metadata
+
+From `plugins/SleeperCheck.cs`:
+
+- **Name:** `SleeperCheck`
+- **Author:** `scar.dev`
+- **Version:** `1.0.1`
 
 ---
 
 ## Features
 
-- Scans all currently sleeping players (`BasePlayer.sleepingPlayerList`).
-- Filters out sleepers in safe zones.
-- Detects nearby building context via nearby `BuildingBlock` entities.
-- Optionally enforces same `buildingID` for pair matching.
-- Reports sleeper pairs within configurable proximity distance.
+- Scans sleepers from `BasePlayer.sleepingPlayerList`.
+- Deduplicates by `userID`.
+- Excludes sleepers in safe zones (`InSafeZone()`).
+- Infers building context from nearby construction-layer `BuildingBlock` entities.
+- Optionally requires exact same `buildingID` when matching pairs.
+- Matches sleepers within configurable proximity distance.
+- Sorts matches by:
+  1. distance ascending,
+  2. sleeper A name (case-insensitive),
+  3. sleeper B name (case-insensitive).
 - Supports both:
-  - Chat command: `/sleepercheck`
-  - Console command: `sleepercheck`
-- Permission-gated for non-admin users.
-- Optional grid coordinate display via `GridAPI` plugin if present.
-- Configurable max printed results to avoid console/chat spam.
+  - chat command: `/sleepercheck`
+  - console command: `sleepercheck`
+- Permission-gated for non-admin players (`sleepercheck.use`).
+- Includes grid labels using `MapHelper.PositionToString`.
+- Truncates printed results using configurable max-output cap.
 
 ---
 
 ## Requirements
 
-- Rust dedicated server running Oxide/uMod-compatible plugins.
-- This plugin file at:
-  - `plugins/SleeperCheck.cs`
+- Rust dedicated server with Oxide/uMod plugin support.
+- `plugins/SleeperCheck.cs` in your Oxide plugins folder.
 
-Optional:
-- `GridAPI` plugin, if you want grid references in output.
+No external plugin dependency is required for grid output.
 
 ---
 
 ## Installation
 
-1. Copy `plugins/SleeperCheck.cs` into your server's `oxide/plugins/` directory.
-2. (Optional) Copy the example config from `configs/SleeperCheck.json` into `oxide/config/SleeperCheck.json`.
+1. Copy `plugins/SleeperCheck.cs` to `oxide/plugins/SleeperCheck.cs`.
+2. (Optional) Copy `configs/SleeperCheck.json` to `oxide/config/SleeperCheck.json`.
 3. Reload plugin:
 
 ```bash
@@ -49,13 +66,16 @@ Or restart the server.
 
 ## Permissions
 
-The plugin registers:
+Registered permission:
 
 - `sleepercheck.use`
 
-By default, server admins can always run the command. Non-admins must be granted this permission.
+Access behavior:
 
-### Example permission grant
+- Server admins are always allowed.
+- Non-admin players must have `sleepercheck.use`.
+
+Examples:
 
 ```bash
 oxide.grant user <steamid64> sleepercheck.use
@@ -66,46 +86,44 @@ oxide.grant group admin sleepercheck.use
 
 ## Commands
 
-### Chat
+### Chat command
 
 ```text
 /sleepercheck
 ```
 
-### Server/client console
+### Console command
 
 ```text
 sleepercheck
 ```
 
-If run by a player without permission, the plugin returns an access error.
+- Player execution checks permission/admin access.
+- RCON/server console execution is allowed.
 
 ---
 
-## How Detection Works
+## Detection Flow
 
-For each sleeping player:
+For each sleeping player, the plugin:
 
-1. Ignore invalid/null entities.
-2. Ignore duplicate user IDs.
-3. Ignore sleepers currently in safe zones.
-4. Find nearest building ID from nearby construction-layer entities.
-5. Keep only sleepers associated with a valid building ID.
+1. skips null/invalid entities,
+2. skips duplicate user IDs,
+3. skips sleepers in safe zones,
+4. finds the nearest valid nearby `BuildingBlock` and its `buildingID`,
+5. keeps only sleepers with non-zero building IDs.
 
-Then pairwise comparison is performed:
+Then it compares sleeper pairs:
 
-- If `RequireSameBuildingId = true`, only sleepers in same building are compared.
-- If distance between two sleepers is less than or equal to `SleeperProximityMeters`, a match is recorded.
-- Results are sorted by:
-  1. Distance ascending
-  2. Sleeper A name
-  3. Sleeper B name
+- uses `SleeperProximityMeters` as the maximum pair distance,
+- optionally requires identical building IDs (`RequireSameBuildingId`),
+- records and sorts all matching pairs.
 
 ---
 
 ## Configuration
 
-Default settings:
+Default configuration:
 
 ```json
 {
@@ -117,18 +135,20 @@ Default settings:
 }
 ```
 
-### Option reference
+> Note: `IncludeGridIfGridApiPresent` controls whether grid is included, but current implementation uses `MapHelper.PositionToString` directly and does not call an external Grid API plugin.
 
-- `SleeperProximityMeters` (float)
-  - Maximum distance between two sleepers to count as a match.
-- `BuildingSearchRadiusMeters` (float)
-  - Radius used to locate nearby building blocks and infer building ID.
-- `MaxResultsToPrint` (int)
-  - Safety cap for printed output lines.
-- `RequireSameBuildingId` (bool)
-  - If true, only report pairs in exactly the same building ID.
-- `IncludeGridIfGridApiPresent` (bool)
-  - If true and `GridAPI` is installed, include map grid tag per sleeper.
+### Options
+
+- `SleeperProximityMeters` (`float`)
+  - Maximum distance between two sleepers for a match.
+- `BuildingSearchRadiusMeters` (`float`)
+  - Radius used to scan construction entities to infer nearest building ID.
+- `MaxResultsToPrint` (`int`)
+  - Maximum number of pair lines printed after summary.
+- `RequireSameBuildingId` (`bool`)
+  - When true, only pairs sharing the exact same building ID are reported.
+- `IncludeGridIfGridApiPresent` (`bool`)
+  - When true, includes grid text for each sleeper in output.
 
 ---
 
@@ -140,59 +160,39 @@ SleeperCheck: scanned 42 qualifying sleepers. Found 3 matching pair(s).
 [2] Alpha (76561198000000003) [J14] <-> Bravo (76561198000000004) [J14] | Distance: 2.03m | BuildingID: 224901
 ```
 
-If result count exceeds `MaxResultsToPrint`, plugin emits truncation notice.
+If output exceeds `MaxResultsToPrint`, plugin prints a truncation line.
 
 ---
 
 ## Troubleshooting
 
-### Compilation error: `The name 'Pool' does not exist in the current context`
+### Command says permission denied
 
-This plugin uses Facepunch pooling utilities (`Pool.GetList` / `Pool.FreeList`). Ensure the plugin includes:
+- Ensure player is admin or granted `sleepercheck.use`.
 
-```csharp
-using Facepunch;
-```
+### No matches found
 
-### No results found
+- There may be fewer than 2 qualifying sleepers.
+- Sleepers in safe zones are intentionally excluded.
+- `BuildingSearchRadiusMeters` may be too small for your structures.
+- `RequireSameBuildingId` may be filtering expected pairs.
+- `SleeperProximityMeters` may be set too low.
 
-- Sleepers may be in safe zones and filtered out.
-- `BuildingSearchRadiusMeters` may be too small for your build layouts.
-- `RequireSameBuildingId` may be too strict for your use case.
+### Grid displays `n/a`
 
-### Grid shows `n/a`
-
-- `GridAPI` is not installed, unloaded, or not returning expected format.
-- Set `IncludeGridIfGridApiPresent` to `false` to skip lookup.
+- Grid inclusion may be disabled (`IncludeGridIfGridApiPresent = false`).
+- Grid conversion can return empty/unexpected values in edge cases.
 
 ---
 
 ## Performance Notes
 
-- Pair finding is O(n²) on qualifying sleepers.
-- For very high-pop servers, keep proximity and search constraints tuned to reduce candidate sets.
-- `MaxResultsToPrint` limits output size only (not scan cost).
-
----
-
-## Security / Access Control
-
-- Use `sleepercheck.use` conservatively.
-- Restrict usage to trusted staff roles.
-- Consider logging command usage in your moderation pipeline.
-
----
-
-## Versioning
-
-Current plugin metadata:
-
-- Name: `SleeperCheck`
-- Author: `ScarDev`
-- Version: `1.0.0`
+- Pair comparison is **O(n²)** over qualifying sleepers.
+- `MaxResultsToPrint` limits only output volume, not scan cost.
+- On high-pop servers, tune building search radius and proximity values to reduce match volume.
 
 ---
 
 ## License
 
-No explicit license is included in this repository. Add a license file if you want to define reuse terms.
+No explicit license file is currently included in this repository.
