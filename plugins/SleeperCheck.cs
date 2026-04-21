@@ -298,23 +298,10 @@ namespace Oxide.Plugins
             if (!_config.IncludeGridIfGridApiPresent)
                 return null;
 
-            var gridApi = plugins.Find("GridAPI");
-            if (gridApi == null)
-                return null;
-
-            try
-            {
-                var result = gridApi.Call("GetGrid", position) as string[];
-                if (result == null || result.Length < 2)
-                    return null;
-
-                return $"{result[0]}{result[1]}";
-            }
-            catch
-            {
-                return null;
-            }
+            return GetGridLocation(position);
         }
+
+        private string GetGridLocation(Vector3 position) => MapHelper.PositionToString(position);
 
         private void ReplyToPlayer(BasePlayer player, string message)
         {
